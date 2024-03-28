@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -67,6 +68,7 @@ func srcAndDstIsCorrect(src string, dst string) bool {
 	}
 	return dstInfo.IsDir() && !srcInfo.IsDir()
 }
+
 func exceptionIsNotNIL(err error) {
 	if err != nil {
 		fmt.Println(err)
@@ -77,13 +79,20 @@ func exceptionIsNotNIL(err error) {
 
 func parseLinks(file io.Reader, directory string) {
 	reader := bufio.NewReader(file)
+	var wgroup sync.WaitGroup
 	for {
 		link, err := reader.ReadString('\n')
 		if err == io.EOF {
 			break
 		}
 		exceptionIsNotNIL(err)
-		writeResponseBody(link, directory)
+		wgroup.Add(1)
+		go func(link string, directory string) {
+			defer wgroup.Done()
+			writeResponseBody(link, directory)
+		}(link, directory)
+		wgroup.Wait()
+
 	}
 }
 
@@ -106,8 +115,6 @@ func writeResponseBody(link string, directory string) {
 	}
 
 	writeBodyInDirectory(getDomainInLink(*request), directory, string(body))
-
-	fmt.Println("ready!")
 }
 
 func writeBodyInDirectory(fileName string, directoryPath string, textForFile string) {
