@@ -9,6 +9,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -18,36 +19,55 @@ func main() {
 	startParse()
 }
 
+/*
+доделать валидацию и корректность введены данных
+*/
 func startParse() {
+	// получаем время начала программы
 	startTime := time.Now()
+
+	// путь для предполагаемого файла и дирректории
 	var requestSource string
 	var directoryForParse string
-
 	parseParam(&requestSource, &directoryForParse)
 
 	fileRead, errRead := os.Open(requestSource)
-	throwException(errRead)
+	exceptionIsNotNIL(errRead)
 
 	parseLinks(fileRead, directoryForParse)
 
 	fmt.Printf("Время работы программы: %v\n", time.Now().Sub(startTime))
 }
 
+// получаем параметры с вызова программы
 func parseParam(src *string, dst *string) {
 	flag.StringVar(src, "src", "null", "address for request")
 	flag.StringVar(dst, "dst", "null", "directory for response")
 	flag.Parse()
-	if *src == "null" || *dst == "null" {
-		throwLocalException()
+
+	if !srcAndDstIsCorrect(*src, *dst) {
+		exceptionIsNotNIL(errors.New("Параметр src содержит файл, а dst папку финального назначения"))
 	}
 }
+func srcAndDstIsCorrect(src string, dst string) bool {
+	if src == "null" || dst == "null" {
+		exceptionIsNotNIL(errors.New("Источник или дирректория не найдены"))
+	}
+	srcInfo, srcErr := os.Stat(src)
+	dstInfo, dstErr := os.Stat(dst)
 
-func throwLocalException() {
-	fmt.Println(errors.New("Ошибка работы программы!"))
-	os.Exit(0)
+	if srcErr != nil || dstErr != nil {
+		if os.IsNotExist(srcErr) || os.IsNotExist(dstErr) {
+			fmt.Println("Файл или директория не существует")
+		} else {
+			fmt.Println("Ошибка получения информации о файле или директории")
+		}
+		exceptionIsNotNIL(srcErr)
+		exceptionIsNotNIL(dstErr)
+	}
+	return dstInfo.IsDir() && !srcInfo.IsDir()
 }
-
-func throwException(err error) {
+func exceptionIsNotNIL(err error) {
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(0)
@@ -62,36 +82,47 @@ func parseLinks(file io.Reader, directory string) {
 		if err == io.EOF {
 			break
 		}
-		throwException(err)
-		sendResponse(link, directory)
+		exceptionIsNotNIL(err)
+		writeResponseBody(link, directory)
 	}
 }
 
-func sendResponse(link string, directory string) {
+func writeResponseBody(link string, directory string) {
 	link = validateLink(link)
-	if link == "" {
+
+	request, err := http.NewRequest("GET", "http://"+link, nil)
+	if err != nil {
 		return
 	}
-	request, err := http.NewRequest("GET", "http://"+link, nil)
-	throwException(err)
+
 	client := &http.Client{}
 	response, err := client.Do(request)
-	throwException(err)
+	if err != nil {
+		return
+	}
 	body, err := ioutil.ReadAll(response.Body)
-	throwException(err)
+	if err != nil {
+		return
+	}
 
-	fileWrite, err := os.Create(directory + "/" + link)
-	throwException(err)
-
-	_, err = fileWrite.WriteString(string(body))
-	throwException(err)
+	writeBodyInDirectory(getDomainInLink(*request), directory, string(body))
 
 	fmt.Println("ready!")
 }
 
+func writeBodyInDirectory(fileName string, directoryPath string, textForFile string) {
+	fileWrite, err := os.Create(directoryPath + "/" + fileName)
+	exceptionIsNotNIL(err)
+
+	_, err = fileWrite.WriteString(textForFile)
+	exceptionIsNotNIL(err)
+}
 func validateLink(link string) string {
-	if link[len(link)-1:] == "\n" {
-		return link[:len(link)-1]
-	}
+	link = strings.ReplaceAll(link, "\n", "")
+	link = strings.ReplaceAll(link, "http://", "")
+	link = strings.ReplaceAll(link, "https://", "")
 	return link
+}
+func getDomainInLink(req http.Request) string {
+	return string(req.Host)
 }
