@@ -106,8 +106,6 @@ func writeResponseBody(link string, directory string) {
 	}
 
 	writeBodyInDirectory(getDomainInLink(*request), directory, string(body))
-
-	fmt.Println("ready!")
 }
 
 func writeBodyInDirectory(fileName string, directoryPath string, textForFile string) {
