@@ -52,6 +52,12 @@ func srcAndDstIsCorrect(src string, dst string) bool {
 	if src == "null" || dst == "null" {
 		exceptionIsNotNIL(errors.New("Источник или дирректория не найдены"))
 	}
+	// тестовое получение папки если оно удачно значит создавать новую папку не стоит
+	_, err := os.Stat(dst)
+	if dst[:2] == "./" && err != nil {
+		err := os.Mkdir(dst[2:], os.ModePerm)
+		exceptionIsNotNIL(err)
+	}
 	srcInfo, srcErr := os.Stat(src)
 	dstInfo, dstErr := os.Stat(dst)
 
