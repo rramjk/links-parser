@@ -14,15 +14,11 @@ import (
 	"time"
 )
 
-// test
-
 func main() {
 	startParse()
 }
 
-/*
-доделать валидацию и корректность введены данных
-*/
+// startParse - старт работы парсера
 func startParse() {
 	// получаем время начала программы
 	startTime := time.Now()
@@ -31,25 +27,27 @@ func startParse() {
 	var requestSource string
 	var directoryForParse string
 	parseParam(&requestSource, &directoryForParse)
-
+	// открытие файла
 	fileRead, errRead := os.Open(requestSource)
 	exceptionIsNotNIL(errRead)
-
+	//считывание ссылок из файла
 	parseLinks(fileRead, directoryForParse)
 
 	fmt.Printf("Время работы программы: %v\n", time.Now().Sub(startTime))
 }
 
-// получаем параметры с вызова программы
+// parseParam - получение параметров с вызова программы
 func parseParam(src *string, dst *string) {
 	flag.StringVar(src, "src", "null", "address for request")
 	flag.StringVar(dst, "dst", "null", "directory for response")
 	flag.Parse()
-
+	// проверка на корректность полученных параметров
 	if !srcAndDstIsCorrect(*src, *dst) {
 		exceptionIsNotNIL(errors.New("Параметр src содержит файл, а dst папку финального назначения"))
 	}
 }
+
+// srcAndDstIsCorrect - проверка источника и необходимой дирректории на корректность (true - src: удачный путь к файлу dst: корректная папка)
 func srcAndDstIsCorrect(src string, dst string) bool {
 	if src == "null" || dst == "null" {
 		exceptionIsNotNIL(errors.New("Источник или дирректория не найдены"))
@@ -69,6 +67,7 @@ func srcAndDstIsCorrect(src string, dst string) bool {
 	return dstInfo.IsDir() && !srcInfo.IsDir()
 }
 
+// exceptionIsNotNIL - прекращение работы программы в случае ошибки
 func exceptionIsNotNIL(err error) {
 	if err != nil {
 		fmt.Println(err)
@@ -77,6 +76,7 @@ func exceptionIsNotNIL(err error) {
 
 }
 
+// parseLinks - считывание в файле ссылки построчно (\n Enter) и записывание файл в дирректорию
 func parseLinks(file io.Reader, directory string) {
 	reader := bufio.NewReader(file)
 	var wgroup sync.WaitGroup
@@ -87,6 +87,7 @@ func parseLinks(file io.Reader, directory string) {
 		}
 		exceptionIsNotNIL(err)
 		wgroup.Add(1)
+		// создание горутины и вызов в ней метода
 		go func(link string, directory string) {
 			defer wgroup.Done()
 			writeResponseBody(link, directory)
@@ -96,6 +97,7 @@ func parseLinks(file io.Reader, directory string) {
 	}
 }
 
+// writeResponseBody - запись ссылки в созданный по директории файл, в случае ошибки выходит из функции
 func writeResponseBody(link string, directory string) {
 	link = validateLink(link)
 
@@ -109,6 +111,7 @@ func writeResponseBody(link string, directory string) {
 	if err != nil {
 		return
 	}
+
 	body, err := ioutil.ReadAll(response.Body)
 	if err != nil {
 		return
@@ -117,6 +120,7 @@ func writeResponseBody(link string, directory string) {
 	writeBodyInDirectory(getDomainInLink(*request), directory, string(body))
 }
 
+// writeBodyInDirectory - создание и запись информации в файл по указанной директории
 func writeBodyInDirectory(fileName string, directoryPath string, textForFile string) {
 	fileWrite, err := os.Create(directoryPath + "/" + fileName)
 	exceptionIsNotNIL(err)
@@ -124,12 +128,16 @@ func writeBodyInDirectory(fileName string, directoryPath string, textForFile str
 	_, err = fileWrite.WriteString(textForFile)
 	exceptionIsNotNIL(err)
 }
+
+// validateLink - валидация и коррекция ссылки на лишнюю информацию
 func validateLink(link string) string {
 	link = strings.ReplaceAll(link, "\n", "")
 	link = strings.ReplaceAll(link, "http://", "")
 	link = strings.ReplaceAll(link, "https://", "")
 	return link
 }
+
+// getDomainInLink - получение домена из запроса
 func getDomainInLink(req http.Request) string {
 	return string(req.Host)
 }
