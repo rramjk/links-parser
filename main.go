@@ -43,30 +43,28 @@ func parseParam(src *string, dst *string) error {
 	flag.Parse()
 
 	// проверка на корректность полученных параметров
-	if !srcAndDstIsCorrect(*src, *dst) {
-		return errors.New("Параметр src должен содержать путь к файлу, а dst путь к папке финального назначения")
+	err := srcAndDstIsCorrect(*src, *dst)
+	if err != nil {
+		return err
 	}
+
 	return nil
 }
 
 // srcAndDstIsCorrect - проверка источника и необходимой дирректории на корректность (true - src: удачный путь к файлу dst: корректная папка)
-func srcAndDstIsCorrect(src string, dst string) bool {
+func srcAndDstIsCorrect(src string, dst string) error {
 	if src == "null" || dst == "null" {
-		fmt.Print(errors.New("Источник или директория указаны не верно\n"))
-		fmt.Println("./main --src='path to file' --dst='path to directory'")
-		os.Exit(0)
+		return errors.New("Источник или директория указаны не верно\n./main --src='path to file' --dst='path to directory'")
 	}
 	if len(src) < 3 || len(dst) < 3 {
-		fmt.Println(errors.New("Параметр src должен содержать путь к файлу, а dst путь к папке финального назначения"))
-		os.Exit(0)
+		return errors.New("Параметр src должен содержать путь к файлу, а dst путь к папке финального назначения")
 	}
 	// тестовое получение папки если оно удачно значит создавать новую папку не стоит
 	_, err := os.Stat(dst)
 	if dst[:2] == "./" && err != nil {
 		err := os.Mkdir(dst[2:], os.ModePerm)
 		if err != nil {
-			fmt.Println(err)
-			os.Exit(0)
+			return err
 		}
 	}
 	srcInfo, srcErr := os.Stat(src)
@@ -74,19 +72,15 @@ func srcAndDstIsCorrect(src string, dst string) bool {
 
 	if srcErr != nil || dstErr != nil {
 		if os.IsNotExist(srcErr) || os.IsNotExist(dstErr) {
-			fmt.Println("Файла или директория не существует")
+			return errors.New("Файл или директория не существует")
 		} else {
-			fmt.Println("Ошибка получения информации о файле или директории")
-		}
-		if srcErr != nil {
-			fmt.Println(srcErr)
-			os.Exit(0)
-		} else if dstErr != nil {
-			fmt.Println(srcErr)
-			os.Exit(0)
+			return errors.New("Ошибка получения информации о файле или директории")
 		}
 	}
-	return dstInfo.IsDir() && !srcInfo.IsDir()
+	if !(dstInfo.IsDir() && !srcInfo.IsDir()) {
+		return errors.New("Параметр src должен содержать путь к файлу, а dst путь к папке финального назначения")
+	}
+	return nil
 }
 
 // parseLinks - считывание в файле ссылки построчно (\n Enter) и записывание файл в дирректорию
