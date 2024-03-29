@@ -61,7 +61,7 @@ func parseParam(src *string, dst *string) error {
 
 // srcAndDstIsCorrect - проверка источника и необходимой дирректории на корректность (true - src: удачный путь к файлу dst: корректная папка)
 func srcAndDstIsCorrect(src string, dst string) error {
-	if src == "null" || dst == "null" {
+	if src == "null" || dst == "null" || len(src) < 2 || len(dst) < 2 {
 		return errors.New("Источник или директория указаны не верно\n./main --src='path to file' --dst='path to directory'")
 	}
 	// тестовое получение папки если оно удачно значит создавать новую папку не стоит
