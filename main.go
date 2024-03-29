@@ -13,6 +13,8 @@ import (
 	"time"
 )
 
+var noSuchDirectoryError = errors.New("Директории не существует")
+
 func main() {
 	// получаем время начала программы
 	startTime := time.Now()
@@ -21,6 +23,9 @@ func main() {
 	var requestSource string
 	var directoryForParse string
 	err := parseParam(&requestSource, &directoryForParse)
+	if err == noSuchDirectoryError {
+		err = createDrtInCurrentFolder(directoryForParse)
+	}
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(0)
@@ -32,8 +37,11 @@ func main() {
 	}
 	defer fileRead.Close()
 	//считывание ссылок из файла
-	parseLinks(fileRead, directoryForParse)
-
+	errParse := readLinksAndCreateFiles(fileRead, directoryForParse)
+	if errParse != nil {
+		fmt.Println(errParse)
+		os.Exit(0)
+	}
 	fmt.Printf("Время работы программы: %v\n", time.Now().Sub(startTime))
 }
 
@@ -57,16 +65,10 @@ func srcAndDstIsCorrect(src string, dst string) error {
 	if src == "null" || dst == "null" {
 		return errors.New("Источник или директория указаны не верно\n./main --src='path to file' --dst='path to directory'")
 	}
-	if len(src) < 3 || len(dst) < 3 {
-		return errors.New("Параметр src должен содержать путь к файлу, а dst путь к папке финального назначения")
-	}
 	// тестовое получение папки если оно удачно значит создавать новую папку не стоит
 	_, err := os.Stat(dst)
 	if dst[:2] == "./" && err != nil {
-		err := os.Mkdir(dst[2:], os.ModePerm)
-		if err != nil {
-			return err
-		}
+		return noSuchDirectoryError
 	}
 	srcInfo, srcErr := os.Stat(src)
 	dstInfo, dstErr := os.Stat(dst)
@@ -83,31 +85,39 @@ func srcAndDstIsCorrect(src string, dst string) error {
 	}
 	return nil
 }
+func createDrtInCurrentFolder(dstPath string) error {
+	err := os.Mkdir(dstPath[2:], os.ModePerm)
+	if err != nil {
+		return err
+	}
+	return nil
+}
 
-// parseLinks - считывание в файле ссылки построчно (\n Enter) и записывание файл в дирректорию
-func parseLinks(file io.Reader, directory string) {
+// readLinksAndCreateFiles - считывание в файле ссылки построчно (\n Enter) и записывание файл в дирректорию
+func readLinksAndCreateFiles(file io.Reader, directory string) error {
 	reader := bufio.NewReader(file)
-	var wgroup sync.WaitGroup
+	var wGroup sync.WaitGroup
 	for {
 		link, err := reader.ReadString('\n')
 		if err == io.EOF {
 			break
 		}
 		if err != nil {
-			fmt.Println(err)
-			os.Exit(0)
+			return err
 		}
-		wgroup.Add(1)
-		// создание горутины и вызов в ней метода
+		// ГОРУТИНА
+		wGroup.Add(1)
 		go func(link string, directory string, wg *sync.WaitGroup) {
 			defer wg.Done()
 			err = writeResponseBody(link, directory)
 			if err != nil {
 				fmt.Println(err)
 			}
-		}(link, directory, &wgroup)
+		}(link, directory, &wGroup)
+
 	}
-	wgroup.Wait()
+	wGroup.Wait()
+	return nil
 }
 
 // writeResponseBody - запись ссылки в созданный по директории файл, в случае ошибки выходит из функции
@@ -148,15 +158,10 @@ func writeBodyInDirectory(fileName string, directoryPath string, textForFile str
 	if err != nil {
 		return errors.New("Ошибка создания файла!")
 	}
-
+	defer fileWrite.Close()
 	_, err = fileWrite.WriteString(textForFile)
 	if err != nil {
 		return errors.New("Ошибка записи в файл!")
-	}
-
-	err = fileWrite.Close()
-	if err != nil {
-		return err
 	}
 	return nil
 }
