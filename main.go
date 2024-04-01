@@ -28,7 +28,7 @@ func main() {
 	}
 	if err != nil {
 		fmt.Println(err)
-		os.Exit(0)
+		os.Exit(1)
 	}
 	// открытие файла
 	fileRead, errRead := os.Open(requestSource)
@@ -40,7 +40,7 @@ func main() {
 	errParse := readLinksAndCreateFiles(fileRead, directoryForParse)
 	if errParse != nil {
 		fmt.Println(errParse)
-		os.Exit(0)
+		os.Exit(1)
 	}
 	fmt.Printf("Время работы программы: %v\n", time.Now().Sub(startTime))
 }
@@ -136,6 +136,7 @@ func writeResponseBody(link string, directory string) error {
 		err = errors.New(fmt.Sprintf("Ошибка при отправке запроса: http://%v", link))
 		return err
 	}
+	defer response.Body.Close()
 
 	body, err := io.ReadAll(response.Body)
 	if err != nil {
